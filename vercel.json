@@ -1,1 +1,8 @@
-{"rewrites":[{"source":"/((?!manifest.webmanifest|favicon.svg|sw.js|offline.html).*)","destination":"/index.html"}]}
+{
+  "rewrites": [
+    {
+      "source": "/((?!manifest\\.webmanifest|favicon\\.svg|sw\\.js|offline\\.html|terms\\.html).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
