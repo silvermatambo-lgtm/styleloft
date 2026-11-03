@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/((?!manifest\\.webmanifest|favicon\\.svg|sw\\.js|offline\\.html|terms\\.html).*)",
+      "source": "/((?!manifest\\.webmanifest|favicon\\.svg|sw\\.js|offline\\.html|terms\\.html|shipping\\.html|returns\\.html|preorder\\.html|privacy\\.html|styleloft-boutique-hero\\.avif).*)",
       "destination": "/index.html"
     }
   ]
