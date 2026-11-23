@@ -85,13 +85,25 @@ $("authForm").addEventListener("submit",async e=>{
 });
 $("register").onclick=async()=>{
  const email=$("email").value.trim().toLowerCase(),password=$("password").value;
- if(!email||password.length<8){message("authMsg","Enter your email and an 8-character-or-longer password first.",true);return;}
+ const setupCode=$("ownerSignupCode").value.trim();
+ if(!email||password.length<8){message("authMsg","Enter your email and a strong password of at least eight characters first.",true);return;}
+ if(setupCode.length<30){message("authMsg","Enter the private one-time owner setup code supplied by WebDevPro. It is required only when creating the first owner account.",true);return;}
  $("register").disabled=true;
- const {error,data}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://www.styleloft.co.za/admin.html"}});
- $("register").disabled=false;
- if(error){message("authMsg",mailFailure(error),true);return;}
- message("authMsg",data.session?"Account created. Complete the one-time owner setup.":"Check your email and confirm your address, then return here and sign in.");
- if(data.session)await refreshAuth();
+ try{
+  // The server validates this one-time code and atomically assigns the first
+  // authorised new account admin permissions; all other signups are rejected.
+  const {error,data}=await db.auth.signUp({
+   email,password,
+   options:{emailRedirectTo:"https://www.styleloft.co.za/admin.html",data:{styleloft_owner_setup_code:setupCode}}
+  });
+  if(error)throw error;
+  $("ownerSignupCode").value="";
+  message("authMsg",data.session?
+   "Your owner account has been created and granted administrator access. Opening your dashboard…" :
+   "If your registration was accepted, your first owner account has been granted administrator access. If email confirmation is required by Supabase, confirm the email before logging in. You will not need another admin setup step.");
+  if(data.session)await refreshAuth();
+ }catch(error){message("authMsg","Owner registration was not completed. "+mailFailure(error)+" If the account has already been claimed, contact WebDevPro.",true);}
+ finally{$("register").disabled=false;}
 };
 // The project must have production SMTP and Supabase URL Configuration enabled
 // before verification and recovery mail can be delivered to the shop owner.
@@ -119,13 +131,6 @@ db.auth.onAuthStateChange((event,session)=>{
  if(event==="PASSWORD_RECOVERY"){const p=prompt("Enter a new password (at least 8 characters):");if(p?.length>=8)db.auth.updateUser({password:p}).then(({error})=>message("authMsg",error?errorMessage(error):"Password updated. Sign in again.",Boolean(error)));}
 });
 $("signOut").onclick=async()=>{await db.auth.signOut();user=null;screen("authArea");};
-$("claimForm").addEventListener("submit",async e=>{
- e.preventDefault();const code=$("claimCode").value.trim();const b=e.target.querySelector("button");b.disabled=true;
- const {error}=await db.rpc("styleloft_claim_owner",{p_code:code});
- b.disabled=false;
- if(error){message("claimMsg",errorMessage(error),true);return;}
- $("claimCode").value="";await refreshAuth();
-});
 $("addNew").onclick=()=>openEditor(null);
 $("cancel").onclick=$("cancel2").onclick=closeEditor;
 $("editorWrap").addEventListener("click",e=>{if(e.target===$("editorWrap"))closeEditor();});
