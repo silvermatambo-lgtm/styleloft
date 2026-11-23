@@ -87,16 +87,33 @@ $("register").onclick=async()=>{
  const email=$("email").value.trim().toLowerCase(),password=$("password").value;
  if(!email||password.length<8){message("authMsg","Enter your email and an 8-character-or-longer password first.",true);return;}
  $("register").disabled=true;
- const {error,data}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+"/admin.html"}});
+ const {error,data}=await db.auth.signUp({email,password,options:{emailRedirectTo:"https://www.styleloft.co.za/admin.html"}});
  $("register").disabled=false;
- if(error){message("authMsg",errorMessage(error),true);return;}
+ if(error){message("authMsg",mailFailure(error),true);return;}
  message("authMsg",data.session?"Account created. Complete the one-time owner setup.":"Check your email and confirm your address, then return here and sign in.");
  if(data.session)await refreshAuth();
 };
+// The project must have production SMTP and Supabase URL Configuration enabled
+// before verification and recovery mail can be delivered to the shop owner.
+function mailFailure(error){
+ const msg=errorMessage(error);
+ if(/email address not authorized|smtp|sending.*email|email.*send|email.*rate limit/i.test(msg))
+   return msg+" — The store's verification email service is not ready. Please contact WebDevPro; do not create another account.";
+ return msg;
+}
+$("resend").onclick=async()=>{
+ const email=$("email").value.trim().toLowerCase();
+ if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){message("authMsg","Enter your registered email address first.",true);return;}
+ const btn=$("resend");btn.disabled=true;
+ try{
+  const {error}=await db.auth.resend({type:"signup",email,options:{emailRedirectTo:"https://www.styleloft.co.za/admin.html"}});
+  message("authMsg",error?mailFailure(error):"If this email has an unconfirmed registration, a new verification email has been requested. Check Inbox and Spam/Junk.",!!error);
+ }catch(err){message("authMsg",mailFailure(err),true);}finally{btn.disabled=false;}
+};
 $("reset").onclick=async()=>{
  const email=$("email").value.trim().toLowerCase();if(!email){message("authMsg","Enter your email address first.",true);return;}
- const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:location.origin+"/admin.html"});
- message("authMsg",error?errorMessage(error):"If this address is registered, a password reset email will be sent.",Boolean(error));
+ const {error}=await db.auth.resetPasswordForEmail(email,{redirectTo:"https://www.styleloft.co.za/admin.html"});
+ message("authMsg",error?mailFailure(error):"If this address is registered, a password reset email has been requested. Check Inbox and Spam/Junk.",Boolean(error));
 };
 db.auth.onAuthStateChange((event,session)=>{
  if(event==="PASSWORD_RECOVERY"){const p=prompt("Enter a new password (at least 8 characters):");if(p?.length>=8)db.auth.updateUser({password:p}).then(({error})=>message("authMsg",error?errorMessage(error):"Password updated. Sign in again.",Boolean(error)));}
