@@ -1,7 +1,7 @@
 import {createClient} from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/+esm";
-const URL="https://eojkepvidtzougqlqslj.supabase.co";
+const SUPABASE_URL="https://eojkepvidtzougqlqslj.supabase.co";
 const KEY="sb_publishable_WHlbUf22eRqemereTYHwbw_oZDOfg1P";
-const db=createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const db=createClient(SUPABASE_URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const $=id=>document.getElementById(id);
 let user=null,products=[],editing=null,loaded=false;
 const errorMessage=e=>e?.message||"Something went wrong; please retry.";
