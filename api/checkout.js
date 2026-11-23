@@ -12,13 +12,24 @@ const PRODUCTS = Object.freeze({
 });
 const json = (res, code, body) => { res.setHeader("Cache-Control","no-store"); res.setHeader("Content-Type","application/json; charset=utf-8"); return res.status(code).json(body); };
 const str = (v,max=200) => typeof v==="string" ? v.trim().slice(0,max) : "";
+// Live checkout stays off until merchant, courier and parcel settings are complete.
+// Keep credentials in encrypted Vercel environment variables, never in source control.
+const validCollectionAddress = () => {
+  try {
+    const a = JSON.parse(process.env.COURIER_COLLECTION_ADDRESS || "");
+    return Boolean(a && ["street_address","city","country","code"].every(k => typeof a[k] === "string" && a[k].trim()));
+  } catch { return false; }
+};
+const validParcel = () => ["COURIER_PARCEL_LENGTH_CM","COURIER_PARCEL_WIDTH_CM","COURIER_PARCEL_HEIGHT_CM","COURIER_PARCEL_WEIGHT_KG"]
+  .every(k => process.env[k] && Number.isFinite(Number(process.env[k])) && Number(process.env[k]) > 0);
 const ready = () => Boolean(
   process.env.STYLELOFT_ENABLE_CHECKOUT === "true" &&
-  process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_") &&
-  process.env.COURIER_GUY_API_KEY &&
-  process.env.COURIER_GUY_ACCOUNT_NUMBER &&
-  process.env.COURIER_COLLECTION_ADDRESS &&
-  /^https:\/\/[^/]+\/?$/.test(process.env.STYLELOFT_SITE_URL||"")
+  /^sk_(live|test)_[A-Za-z0-9]+$/.test(process.env.PAYSTACK_SECRET_KEY || "") &&
+  process.env.COURIER_GUY_API_KEY?.trim() &&
+  process.env.COURIER_GUY_ACCOUNT_NUMBER?.trim() &&
+  validCollectionAddress() &&
+  validParcel() &&
+  /^https:\/\/[^/]+\/?$/.test(process.env.STYLELOFT_SITE_URL || "")
 );
 function cartFrom(body){
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>15) throw Error("Please add a valid product to your bag.");
