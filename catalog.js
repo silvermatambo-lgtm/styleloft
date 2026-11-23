@@ -2,8 +2,7 @@
    Only the publishable API key is in browser code. RLS protects admin changes. */
 (function(){
  "use strict";
- const endpoint="https://eojkepvidtzougqlqslj.supabase.co/rest/v1/styleloft_products?select=id,name,description,category,price,stock,image_url,active,sort_order&active=eq.true&order=sort_order.asc,created_at.desc";
- const key="sb_publishable_WHlbUf22eRqemereTYHwbw_oZDOfg1P";
+ const endpoint="/api/catalog";
  function showBanner(text){
   let b=document.getElementById("styleloftCatalogStatus");
   if(!b){b=document.createElement("div");b.id="styleloftCatalogStatus";b.setAttribute("role","status");b.style.cssText="background:#fff0dd;color:#543b2c;text-align:center;padding:12px 16px;font:600 13px system-ui";document.querySelector(".top")?.after(b);}
@@ -13,7 +12,7 @@
   // Remove demo catalogue so expired hardcoded prices aren't presented as current.
   P.splice(0,P.length);render();showBanner("Loading the latest StyleLoft products…");
   try{
-   const res=await fetch(endpoint,{headers:{"apikey":key},cache:"no-store",signal:AbortSignal.timeout(10000)});
+   const res=await fetch(endpoint,{cache:"no-store",signal:AbortSignal.timeout(10000)});
    if(!res.ok)throw Error("Catalogue unavailable ("+res.status+")");
    const rows=await res.json();
    if(!Array.isArray(rows))throw Error("Invalid catalogue data");
