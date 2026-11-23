@@ -1,15 +1,29 @@
 // Server-side StyleLoft checkout integration. No API keys belong in browser code.
 // The feature remains disabled until all deployment variables and merchant approval are set.
 const crypto = require("node:crypto");
-const PRODUCTS = Object.freeze({
-  clover: ["Four Leaf Clover Bracelet",150],
-  bow: ["Princess Bow Earrings",50],
-  heart: ["Retro Heart Shaped Earrings",150],
-  zirconia: ["Three Pairs Assorted Zirconia Earrings",100],
-  hoops: ["Silver Heart Hoop Earrings",100],
-  roman: ["Roman Numeral Bracelets",250],
-  bag: ["Mini Kelly Inspired Cross-body Handbag",350]
-});
+async function getLiveProducts() {
+ const url=(process.env.STYLELOFT_SUPABASE_URL||"").replace(/\/$/,"");
+ const key=process.env.STYLELOFT_SUPABASE_PUBLISHABLE_KEY;
+ if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)||!key)
+   throw Error("The product catalogue is not configured. No payment has started.");
+ let response;
+ try{
+   response=await fetch(url+"/rest/v1/styleloft_products?select=id,name,price,stock&active=eq.true",{
+     headers:{"apikey":key,"Accept":"application/json"},signal:AbortSignal.timeout(8000),cache:"no-store"
+   });
+ }catch{throw Error("Unable to contact the current product catalogue. No payment has started.");}
+ if(!response.ok)throw Error("The product catalogue is unavailable. No payment has started.");
+ const rows=await response.json();
+ if(!Array.isArray(rows))throw Error("The product catalogue was unreadable.");
+ const result=Object.create(null);
+ for(const row of rows){
+   const price=Number(row.price),stock=Number(row.stock);
+   if(row.id && Number.isFinite(price) && price>=0 && Number.isSafeInteger(stock) && stock>=0)
+     result[row.id]={name:row.name,price,stock};
+ }
+ return result;
+}
+
 const json = (res, code, body) => { res.setHeader("Cache-Control","no-store"); res.setHeader("Content-Type","application/json; charset=utf-8"); return res.status(code).json(body); };
 const str = (v,max=200) => typeof v==="string" ? v.trim().slice(0,max) : "";
 // Live checkout stays off until merchant, courier and parcel settings are complete.
@@ -27,20 +41,22 @@ const ready = () => Boolean(
   /^sk_(live|test)_[A-Za-z0-9]+$/.test(process.env.PAYSTACK_SECRET_KEY || "") &&
   process.env.COURIER_GUY_API_KEY?.trim() &&
   process.env.COURIER_GUY_ACCOUNT_NUMBER?.trim() &&
+  process.env.STYLELOFT_SUPABASE_URL &&
+  process.env.STYLELOFT_SUPABASE_PUBLISHABLE_KEY &&
   validCollectionAddress() &&
   validParcel() &&
   /^https:\/\/[^/]+\/?$/.test(process.env.STYLELOFT_SITE_URL || "")
 );
-function cartFrom(body){
+function cartFrom(body,products){
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>15) throw Error("Please add a valid product to your bag.");
   let quantities={},count=0;
   for(const row of body.items){
-    if(!row||!Object.prototype.hasOwnProperty.call(PRODUCTS,row.id)||!Number.isInteger(row.quantity)||row.quantity<1||row.quantity>10) throw Error("Your bag contains invalid products or quantities.");
+    if(!row||!Object.prototype.hasOwnProperty.call(products,row.id)||!Number.isInteger(row.quantity)||row.quantity<1||row.quantity>10) throw Error("Your bag contains invalid products or quantities.");
     quantities[row.id]=(quantities[row.id]||0)+row.quantity;
     count+=row.quantity;
   }
-  if(count>20||Object.values(quantities).some(q=>q>10)) throw Error("Please reduce your bag to 20 items or fewer.");
-  const items=Object.entries(quantities).map(([id,quantity])=>({id,name:PRODUCTS[id][0],quantity,unit_price:PRODUCTS[id][1]}));
+  if(count>20||Object.values(quantities).some(q=>q>10)||Object.entries(quantities).some(([id,q])=>q>products[id].stock)) throw Error("Please reduce your bag to 20 items or fewer.");
+  const items=Object.entries(quantities).map(([id,quantity])=>({id,name:products[id].name,quantity,unit_price:products[id].price}));
   const subtotal=items.reduce((sum,p)=>sum+p.quantity*p.unit_price,0);
   return {items,subtotal,count};
 }
@@ -124,7 +140,8 @@ module.exports = async function handler(req,res){
   if(req.method!=="POST"||!["quote","pay"].includes(action))return json(res,405,{error:"Method or action not supported."});
   if(Number(req.headers["content-length"]||0)>15000)return json(res,413,{error:"Request too large."});
   const body=typeof req.body==="object"&&req.body!==null?req.body:{};
-  const {items,subtotal,count}=cartFrom(body);
+  const liveProducts=await getLiveProducts();
+  const {items,subtotal,count}=cartFrom(body,liveProducts);
   const address=addressFrom(body);
   const quote=await courierQuote(address,items,subtotal,count);
   const total=Math.round((subtotal+quote.delivery)*100);
